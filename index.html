@@ -8,7 +8,8 @@
     <style>
       :root { --bg: #000; --fg: #c8ffcd; --dim: #2f6b3c; --pad: rgba(20, 60, 30, 0.55); --pad-on: rgba(90, 200, 120, 0.6); color-scheme: dark; }
       html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--fg); }
-      [tabindex] { outline: none; }
+      /* The game grid fills the viewport; ratzilla sizes its grid from this. */
+      #game { position: fixed; inset: 0; overflow: hidden; }
       pre { font-family: "DejaVu Sans Mono", Menlo, Consolas, monospace; font-size: 14px; margin: 0; color: var(--fg); }
 
       /* Touch controls: only on touch screens. Each button sends the same key

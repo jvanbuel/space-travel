@@ -1,6 +1,9 @@
 //! Browser front end (ratzilla + WebAssembly).
 
-use std::{cell::RefCell, rc::Rc};
+use std::{
+    cell::{Cell, RefCell},
+    rc::Rc,
+};
 
 use ratzilla::{DomBackend, WebRenderer, event::KeyCode, ratatui::Terminal, web_sys};
 use wasm_bindgen::{JsCast, closure::Closure};
@@ -11,7 +14,7 @@ pub fn run() -> std::io::Result<()> {
     let app = Rc::new(RefCell::new(App::new()));
     // Render into its own container: on resize ratzilla clears the grid's
     // parent, which would otherwise wipe the touch controls and help panel.
-    let mut terminal = Terminal::new(DomBackend::new_by_id("game")?)?;
+    let terminal = Terminal::new(DomBackend::new_by_id("game")?)?;
 
     // Listen for keys on the window, not through `on_key_event`: ratzilla
     // rebuilds its grid element on resize without re-attaching that listener,
@@ -35,12 +38,34 @@ pub fn run() -> std::io::Result<()> {
         .map_err(|_| std::io::Error::other("cannot listen for keys"))?;
     on_key.forget(); // lives for the whole page
 
+    // After a resize ratzilla rebuilds an empty grid, but ratatui only redraws
+    // cells that changed since the last frame. When the size in cells stays
+    // the same (an iframe laying out, a browser bar hiding) that left most of
+    // the screen blank. So the frame after a resize fills every cell with a
+    // blank Braille character, which forces a full redraw on the next one.
+    let resized = Rc::new(Cell::new(false));
+    let on_resize = Closure::<dyn FnMut()>::new({
+        let resized = resized.clone();
+        move || resized.set(true)
+    });
+    web_sys::window()
+        .ok_or_else(|| std::io::Error::other("no window"))?
+        .add_event_listener_with_callback("resize", on_resize.as_ref().unchecked_ref())
+        .map_err(|_| std::io::Error::other("cannot listen for resizes"))?;
+    on_resize.forget();
+
     // Called once per browser animation frame.
     let mut last = js_sys::Date::now();
     terminal.draw_web(move |f| {
         let now = js_sys::Date::now();
         let dt = ((now - last) / 1000.0).min(0.1); // clamp after a hidden tab
         last = now;
+        if resized.replace(false) {
+            for cell in f.buffer_mut().content.iter_mut() {
+                cell.set_symbol("\u{2800}");
+            }
+            return;
+        }
         let mut app = app.borrow_mut();
         app.update(dt);
         app.draw(f);

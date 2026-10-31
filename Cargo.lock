@@ -1209,8 +1209,6 @@ dependencies = [
 [[package]]
 name = "ratzilla"
 version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d53309a50b2cfb9828d1ea653b77fc6d2fe08137b05e65aa070ab87630e35b49"
 dependencies = [
  "beamterm-renderer",
  "bitvec",

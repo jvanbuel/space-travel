@@ -21,3 +21,8 @@ critical-section = { version = "1", features = ["std"] }
 [profile.release]
 opt-level = 3
 lto = true
+
+# ratzilla 0.3.1 with a small fix to its DOM backend's resize handling; see
+# vendor/ratzilla/PATCHED.md.
+[patch.crates-io]
+ratzilla = { path = "vendor/ratzilla" }
