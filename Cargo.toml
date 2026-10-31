@@ -1,0 +1,20 @@
+[package]
+name = "space-travel"
+version = "0.1.0"
+edition = "2024"
+description = "An orbital-mechanics flight game for the terminal and the browser"
+license = "MIT"
+
+[dependencies]
+ratatui = { version = "0.30", default-features = false, features = ["all-widgets"] }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+ratatui = { version = "0.30", features = ["crossterm"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+ratzilla = "0.3.1"
+js-sys = "0.3"
+
+[profile.release]
+opt-level = 3
+lto = true
