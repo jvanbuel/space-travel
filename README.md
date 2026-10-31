@@ -4,8 +4,9 @@ A Rust port of Ken Thompson's *Space Travel* (1969), playable in the terminal
 ([ratatui](https://ratatui.rs) + crossterm) and in the browser
 ([ratzilla](https://github.com/ratatui/ratzilla) + WebAssembly).
 
-> Status: skeleton only. The game loop, input and rendering plumbing work on
-> both targets; the game itself still has to be ported.
+> Status: the game is ported. `src/game.rs` follows the original routine by
+> routine; see [Notes on the port](#notes-on-the-port) for the places where
+> the listing had to be interpreted.
 
 ## Running it
 
@@ -29,19 +30,46 @@ trunk serve --release     # then open http://127.0.0.1:8080
 trunk build --release     # static site in dist/, deployable anywhere
 ```
 
-`q` or `Esc` quits the terminal version.
+## Playing
+
+You start landed on Earth (`L` at the bottom right), at scale `+00`. The view
+is centred on the ship and rotates with its heading. The bottom readout shows
+the body you are flying relative to (whichever pulls on you hardest), the
+scale, and `L` (landed) or `CL` (crash landing). The short bar under the view
+is the original's horizontal-velocity indicator.
+
+| Key | Original push button | Action |
+|-----|----------------------|--------|
+| `↓` / `s` | 2 | Thrust "forward" (along the heading, toward the bottom of the view) |
+| `↑` / `w` | 3 | Thrust backward (toward the top of the view) |
+| `←` / `a`, `→` / `d` | 5, 4 | Rotate 1.2° per control poll (5 polls per tick) |
+| `+` / `=` / `x` | 7 | Zoom in (`scale--`) |
+| `-` / `z` | 6 | Zoom out (`scale++`) |
+| `r` / `Enter` | 1 | Clear a crash |
+| `q` / `Esc` | 0 | Quit (terminal) |
+
+One screen unit is 2^scale Earth radii, and **thrust is half a screen unit per
+tick², so it scales with the zoom**. At `+00` one burst sends you off at
+thousands of km/s. Zoom in to around `-18` (thrust just over 1 g) to take off
+gently, and land below about 1 km/s or it counts as a crash. After a crash the
+simulation freezes until you press `r`.
+
+Held keys: terminals and browsers only report key presses (with key repeat),
+so each press holds the button for 0.12 s and key repeat keeps it held.
 
 ## Layout
 
 | File | Role |
 |------|------|
-| `src/app.rs` | **All game code goes here.** `App::update(dt)`, `App::on_key(key)`, `App::draw(frame)`. Platform-independent. |
+| `src/game.rs` | The simulation, translated from `st1.s`–`st5.s`. Builds a display list per tick. |
+| `src/tables.rs` | The planet tables from `st6.s` and constants from `st7.s`, kept as raw PDP-7 words and decoded at start-up. |
+| `src/app.rs` | Fixed-rate ticking (20 Hz), key mapping, and drawing the display list with a Braille `Canvas`. Platform-independent. |
 | `src/native.rs` | Terminal front end: ~30 fps loop, maps crossterm keys to `app::Key`. |
 | `src/web.rs` | Browser front end: runs on `requestAnimationFrame`, maps ratzilla keys to `app::Key`. |
 | `src/main.rs` | Picks the front end with `cfg(target_arch = "wasm32")`. |
 | `index.html` | Trunk entry point; keeps the terminal grid focused so it receives keys. |
 
-As long as `app.rs` uses only `ratatui` (and no `std::time`, threads, or file
+As long as `app.rs`, `game.rs` and `tables.rs` use only `ratatui` (and no `std::time`, threads, or file
 I/O), it compiles for both targets unchanged.
 
 ### Things worth knowing about the platforms
@@ -61,6 +89,38 @@ I/O), it compiles for both targets unchanged.
   the simulation in fixed increments.
 - **wasm:** `Cargo.toml` pulls in `critical-section` with the `std` feature for
   wasm32. ratatui needs it to link there; don't remove it.
+
+## Notes on the port
+
+- **Float format.** `fop.s` floats are three words: exponent, sign + high
+  mantissa, low mantissa, with the mantissa in [0.5, 1). `tables::pdp7`
+  decodes them; unit tests check known values (1.0, 2π, sin 1.2°, Earth's
+  radius and distance from the Sun).
+- **Units.** Lengths are Earth radii and one tick is about one second: Earth's
+  `accl` is its real GM in R⊕³/s², and surface gravity comes out at 9.8 m/s².
+  The port runs 20 ticks per real second.
+- **Planets barely move.** `pww` is used as the per-tick rotation angle, but
+  its values equal GM/r³ (ω², not ω). With one-second ticks the bodies are
+  effectively fixed. The port keeps the original numbers.
+- **`ascale`** is the single word `-1`, so `fld` reads its mantissa from
+  `sdphi` that follows it, giving about -0.5. Reproduced as such.
+- **`crash: -028`** is not valid octal. The port reads it as -(2·8+8) = -24,
+  i.e. a crash above about 1.1 km/s.
+- **`f2pi` / `pid10`** have low words missing their octal prefix; read as
+  octal (it only affects the last bits).
+- **Screen orientation.** GRAPHIC-2 y is taken to point up, as the listing's
+  comments say. Then the view is a pure rotation with the heading pointing
+  down the screen, so "forward" thrust moves you down the screen, and the
+  arrow keys are mapped so ↓ is forward.
+- **Never-set features.** `accflg` and the heading lock (`locflg`) are marked
+  "how to set?" in the listing and have no button; their code is ported but
+  stays off.
+- **Display list.** `dsplanet`'s tiny incremental-vector square becomes a
+  dot, `surf`'s short vectors become canvas lines at intensity 0, and the
+  `"CL"`/`"L"`, name and scale text become the readout line.
+- `sys time` (the delay) becomes the fixed tick rate; `absv`'s
+  step-back-and-forward through `invert` is computed without mutating the
+  planets (the original's round trip is the identity up to rounding).
 
 ## Getting the original source
 

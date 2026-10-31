@@ -1,4 +1,6 @@
 mod app;
+mod game;
+mod tables;
 
 #[cfg(not(target_arch = "wasm32"))]
 mod native;
