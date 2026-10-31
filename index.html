@@ -88,6 +88,7 @@
       </div>
     </div>
     <button id="help" type="button" aria-label="How to play">?</button>
+    <div id="game"></div>
     <div id="touch" aria-label="Touch controls">
       <div class="cluster left">
         <button class="small" style="grid-area: reset" data-key="r" aria-label="Clear crash">RESET</button>
@@ -104,13 +105,6 @@
     </div>
     <script type="module">
       const intro = document.getElementById("intro");
-      // ratzilla listens for keys on its grid element, so keep that element focused.
-      const grid = () => document.querySelector("[tabindex]");
-      const focusGrid = () => grid()?.focus({ preventScroll: true });
-      const waitForGrid = () => grid() ? (intro.hidden && focusGrid()) : requestAnimationFrame(waitForGrid);
-      waitForGrid();
-      document.addEventListener("click", (e) => { if (intro.hidden) focusGrid(); });
-
       // How-to-play panel. The game signals it is running with
       // TrunkApplicationStarted; a load failure shows here instead of a
       // silent black page.
@@ -126,13 +120,14 @@
       addEventListener("gamefailed", (e) => failed(e.detail));
       addEventListener("unhandledrejection", (e) => { if (start.disabled) failed(String(e.reason?.message ?? e.reason)); });
       setTimeout(() => { if (start.disabled && !status.classList.contains("error")) failed("it did not finish loading after 15 seconds."); }, 15000);
-      start.addEventListener("click", () => { intro.hidden = true; focusGrid(); });
+      start.addEventListener("click", () => { intro.hidden = true; start.blur(); });
       document.getElementById("help").addEventListener("click", (e) => { e.stopPropagation(); intro.hidden = false; start.focus(); });
 
-      // Touch buttons send keydown events to the grid. Held buttons repeat
+      // Touch buttons send keydown events to the window, where the game
+      // listens for keys. Held buttons repeat
       // faster than the game's 0.12 s hold window, so holding thrusts or turns
       // continuously, like a held key.
-      const send = (key) => grid()?.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }));
+      const send = (key) => dispatchEvent(new KeyboardEvent("keydown", { key }));
       for (const b of document.querySelectorAll("#touch button")) {
         let timer = null;
         const stop = () => { clearInterval(timer); timer = null; b.classList.remove("on"); };

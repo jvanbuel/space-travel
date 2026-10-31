@@ -150,8 +150,10 @@ pub struct Game {
     pub pbson: u32,
     /// Button state at the previous control poll.
     pbsint: u32,
-    /// Buttons pressed since the last poll; seen by exactly one poll.
+    /// The queued press shown to the current poll (0 for none).
     pulse: u32,
+    /// Presses waiting their turn, so quick repeated presses all count.
+    pending: std::collections::VecDeque<u32>,
     /// Set by the exit button.
     pub exit: bool,
 
@@ -243,6 +245,7 @@ impl Game {
             pbson: 0,
             pbsint: 0,
             pulse: 0,
+            pending: std::collections::VecDeque::new(),
             exit: false,
 
             display: Vec::new(),
@@ -251,9 +254,10 @@ impl Game {
     }
 
     /// Register a single press of an edge-triggered button (exit, reset,
-    /// zoom). The next control poll sees it as newly pressed.
+    /// zoom). Presses are queued, and each one reaches a control poll as a
+    /// new press.
     pub fn press(&mut self, b: u32) {
-        self.pulse |= 1 << b;
+        self.pending.push_back(1 << b);
     }
 
     /// Name of the body the ship is relative to (`dispname`).
@@ -322,8 +326,14 @@ impl Game {
     /// `contrl`: poll the push buttons.
     fn contrl(&mut self) {
         let has = |w: u32, b: u32| w & (1 << b) != 0;
+        // A queued press is shown to one poll, then released for the next,
+        // so the following press of the same button is a new edge.
+        self.pulse = if self.pulse == 0 {
+            self.pending.pop_front().unwrap_or(0)
+        } else {
+            0
+        };
         let now = self.pbson | self.pulse;
-        self.pulse = 0;
 
         // Edge-triggered buttons: pressed now but not at the last poll.
         let edge = (now ^ self.pbsint) & now;
@@ -789,5 +799,16 @@ mod tests {
             }
         }
         assert!(g.lanflg && g.name() == "moon");
+    }
+
+    #[test]
+    fn quick_presses_all_count() {
+        let mut g = Game::new();
+        for _ in 0..5 {
+            g.press(button::ZOOM_IN);
+        }
+        g.tick();
+        g.tick();
+        assert_eq!(g.scale, -5);
     }
 }

@@ -1431,6 +1431,7 @@ dependencies = [
  "js-sys",
  "ratatui",
  "ratzilla",
+ "wasm-bindgen",
 ]
 
 [[package]]

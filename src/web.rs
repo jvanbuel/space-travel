@@ -2,24 +2,38 @@
 
 use std::{cell::RefCell, rc::Rc};
 
-use ratzilla::{DomBackend, WebRenderer, event::KeyCode, ratatui::Terminal};
+use ratzilla::{DomBackend, WebRenderer, event::KeyCode, ratatui::Terminal, web_sys};
+use wasm_bindgen::{JsCast, closure::Closure};
 
 use crate::app::{App, Key};
 
 pub fn run() -> std::io::Result<()> {
     let app = Rc::new(RefCell::new(App::new()));
-    let mut terminal = Terminal::new(DomBackend::new()?)?;
+    // Render into its own container: on resize ratzilla clears the grid's
+    // parent, which would otherwise wipe the touch controls and help panel.
+    let mut terminal = Terminal::new(DomBackend::new_by_id("game")?)?;
 
-    terminal
-        .on_key_event({
-            let app = app.clone();
-            move |k| {
-                if let Some(key) = map_key(k.code) {
-                    app.borrow_mut().on_key(key);
-                }
+    // Listen for keys on the window, not through `on_key_event`: ratzilla
+    // rebuilds its grid element on resize without re-attaching that listener,
+    // so input would stop after a phone rotation or window resize.
+    let on_key = Closure::<dyn FnMut(web_sys::KeyboardEvent)>::new({
+        let app = app.clone();
+        move |e: web_sys::KeyboardEvent| {
+            if e.ctrl_key() || e.alt_key() || e.meta_key() {
+                return;
             }
-        })
-        .map_err(std::io::Error::other)?;
+            if let Some(key) = map_key(KeyCode::from(e.clone())) {
+                // Keep arrow keys from scrolling a page this is embedded in.
+                e.prevent_default();
+                app.borrow_mut().on_key(key);
+            }
+        }
+    });
+    web_sys::window()
+        .ok_or_else(|| std::io::Error::other("no window"))?
+        .add_event_listener_with_callback("keydown", on_key.as_ref().unchecked_ref())
+        .map_err(|_| std::io::Error::other("cannot listen for keys"))?;
+    on_key.forget(); // lives for the whole page
 
     // Called once per browser animation frame.
     let mut last = js_sys::Date::now();
