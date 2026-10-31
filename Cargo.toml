@@ -14,6 +14,8 @@ ratatui = { version = "0.30", features = ["crossterm"] }
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 ratzilla = "0.3.1"
 js-sys = "0.3"
+# ratatui-core needs a critical-section implementation on wasm32
+critical-section = { version = "1", features = ["std"] }
 
 [profile.release]
 opt-level = 3

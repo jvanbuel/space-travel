@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+    <title>space-travel</title>
+    <link data-trunk rel="rust" />
+    <style>
+      html, body { margin: 0; height: 100%; overflow: hidden; background: #000; }
+      [tabindex] { outline: none; }
+      pre { font-family: "DejaVu Sans Mono", Menlo, Consolas, monospace; font-size: 14px; margin: 0; }
+    </style>
+  </head>
+  <body>
+    <script type="module">
+      // ratzilla listens for keys on its grid element, so keep that element focused.
+      const focusGrid = () => document.querySelector("[tabindex]")?.focus();
+      const waitForGrid = () => document.querySelector("[tabindex]") ? focusGrid() : requestAnimationFrame(waitForGrid);
+      waitForGrid();
+      document.addEventListener("click", focusGrid);
+    </script>
+  </body>
+</html>
