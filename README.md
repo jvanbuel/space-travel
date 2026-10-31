@@ -64,6 +64,9 @@ I/O), it compiles for both targets unchanged.
 
 ## Getting the original source
 
+A copy of the game's assembly is in [`original/`](original/) (see its README
+for provenance and build order). The full restoration is below.
+
 The recovered PDP-7 source lives in Warren Toomey's
 [pdp7-unix](https://github.com/DoctorWkt/pdp7-unix) restoration (the repository itself is GPLv3; see the licence note below):
 
