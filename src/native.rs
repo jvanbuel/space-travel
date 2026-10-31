@@ -14,7 +14,7 @@ pub fn run() -> std::io::Result<()> {
     let mut last = Instant::now();
 
     let result = loop {
-        if let Err(e) = terminal.draw(|f| app.draw(f)) {
+        if let Err(e) = terminal.draw(|f| crate::tui::draw(&app, f)) {
             break Err(e);
         }
         // Wait for input until the next frame is due.

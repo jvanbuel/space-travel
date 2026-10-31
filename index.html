@@ -8,9 +8,16 @@
     <style>
       :root { --bg: #000; --fg: #c8ffcd; --dim: #2f6b3c; --pad: rgba(20, 60, 30, 0.55); --pad-on: rgba(90, 200, 120, 0.6); color-scheme: dark; }
       html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--fg); }
-      /* The game grid fills the viewport; ratzilla sizes its grid from this. */
-      #game { position: fixed; inset: 0; overflow: hidden; }
-      pre { font-family: "DejaVu Sans Mono", Menlo, Consolas, monospace; font-size: 14px; margin: 0; color: var(--fg); }
+      /* The vector display: a canvas the game draws on. It fills the window,
+         minus the touch controls on phones (see below). */
+      #display { position: fixed; inset: 0; }
+      #screen { display: block; width: 100%; height: 100%; }
+      @media (pointer: coarse) {
+        #display { bottom: calc(210px + env(safe-area-inset-bottom, 0px)); }
+      }
+      @media (pointer: coarse) and (orientation: landscape) {
+        #display { bottom: 0; right: calc(330px + env(safe-area-inset-right, 0px)); }
+      }
 
       /* Touch controls: only on touch screens. Each button sends the same key
          the keyboard would, so the game needs no separate touch input. */
@@ -89,7 +96,7 @@
       </div>
     </div>
     <button id="help" type="button" aria-label="How to play">?</button>
-    <div id="game"></div>
+    <div id="display"><canvas id="screen" role="img" aria-label="Space Travel vector display"></canvas></div>
     <div id="touch" aria-label="Touch controls">
       <div class="cluster left">
         <button class="small" style="grid-area: reset" data-key="r" aria-label="Clear crash">RESET</button>

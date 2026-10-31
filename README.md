@@ -1,8 +1,8 @@
 # space-travel
 
 A Rust port of Ken Thompson's *Space Travel* (1969), playable in the terminal
-([ratatui](https://ratatui.rs) + crossterm) and in the browser
-([ratzilla](https://github.com/ratatui/ratzilla) + WebAssembly).
+([ratatui](https://ratatui.rs) + crossterm) and in the browser (WebAssembly,
+drawn on an HTML canvas like the original's vector display).
 
 > Status: the game is ported. `src/game.rs` follows the original routine by
 > routine; see [Notes on the port](#notes-on-the-port) for the places where
@@ -68,32 +68,35 @@ so each press holds the button for 0.12 s and key repeat keeps it held.
 |------|------|
 | `src/game.rs` | The simulation, translated from `st1.s`–`st5.s`. Builds a display list per tick. |
 | `src/tables.rs` | The planet tables from `st6.s` and constants from `st7.s`, kept as raw PDP-7 words and decoded at start-up. |
-| `src/app.rs` | Fixed-rate ticking (20 Hz), key mapping, and drawing the display list with a Braille `Canvas`. Platform-independent. |
+| `src/app.rs` | Fixed-rate ticking (20 Hz) and key mapping. Platform-independent. |
 | `src/native.rs` | Terminal front end: ~30 fps loop, maps crossterm keys to `app::Key`. |
-| `src/web.rs` | Browser front end: runs on `requestAnimationFrame`, maps ratzilla keys to `app::Key`. |
+| `src/tui.rs` | Terminal renderer: the display list on ratatui's Braille canvas. |
+| `src/web.rs` | Browser front end: keys from `window`, a `requestAnimationFrame` loop, and the canvas renderer. |
 | `src/main.rs` | Picks the front end with `cfg(target_arch = "wasm32")`. |
-| `index.html` | Trunk entry point; keeps the terminal grid focused so it receives keys. |
+| `index.html` | Trunk entry point: the canvas, touch controls and the how-to-play panel. |
 
-As long as `app.rs`, `game.rs` and `tables.rs` use only `ratatui` (and no `std::time`, threads, or file
-I/O), it compiles for both targets unchanged.
+`app.rs`, `game.rs` and `tables.rs` use no platform APIs (no `std::time`,
+threads or file I/O), so they compile for both targets unchanged.
 
 ### Things worth knowing about the platforms
 
 - **Input is key presses only.** The browser sends `keydown` (with OS
   key-repeat while held), and most terminals report presses, not releases. So
   model controls as "each press does X", not "while held".
-- **Drawing:** `ratatui::widgets::canvas::Canvas` with `Marker::Braille` gives
-  2×4 dots per character cell, the closest thing to a vector display you get
-  in a terminal. Use `ctx.draw(&Line { .. })`, `Points`, `Circle`, and
-  `ctx.print(x, y, "text")` for labels.
-- **Aspect ratio:** cells are about twice as tall as wide. If the canvas is
-  `w × h` cells, give it world bounds in a ratio of about `w : 2h` or circles
-  come out squashed.
+- **Drawing in the terminal:** `ratatui::widgets::canvas::Canvas` with
+  `Marker::Braille` gives 2×4 dots per character cell, the closest thing to a
+  vector display a terminal can do. Cells are about twice as tall as wide, so
+  the view is given twice as many columns as rows.
+- **Drawing in the browser:** the original drew on a Graphic-II vector
+  display: a beam tracing lines at four intensities, on a phosphor that glowed
+  and faded. `web.rs` draws the same display list on a canvas in the display's
+  own coordinates (0–1023, y up): each line is stroked twice (a faint halo,
+  then the line), body centres are glowing dots, each frame fades the last one
+  instead of erasing it, and the `L`/`CL` flag blinks as in the listing
+  (`blink on`).
 - **Time:** both front ends pass real elapsed seconds to `update`. If you want
   to reproduce the original's fixed-tick behaviour, accumulate `dt` and step
   the simulation in fixed increments.
-- **wasm:** `Cargo.toml` pulls in `critical-section` with the `std` feature for
-  wasm32. ratatui needs it to link there; don't remove it.
 
 ## Notes on the port
 

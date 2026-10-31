@@ -5,24 +5,23 @@ edition = "2024"
 description = "An orbital-mechanics flight game for the terminal and the browser"
 license = "MIT"
 
-[dependencies]
-ratatui = { version = "0.30", default-features = false, features = ["all-widgets"] }
-
+# Terminal: ratatui + crossterm.
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-ratatui = { version = "0.30", features = ["crossterm"] }
+ratatui = { version = "0.30", features = ["crossterm", "all-widgets"] }
 
+# Browser: draws on an HTML canvas through web-sys.
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-ratzilla = "0.3.1"
-js-sys = "0.3"
 wasm-bindgen = "0.2"
-# ratatui-core needs a critical-section implementation on wasm32
-critical-section = { version = "1", features = ["std"] }
+web-sys = { version = "0.3", features = [
+    "CanvasRenderingContext2d",
+    "Document",
+    "Element",
+    "HtmlCanvasElement",
+    "KeyboardEvent",
+    "Window",
+] }
 
 [profile.release]
 opt-level = 3
 lto = true
 
-# ratzilla 0.3.1 with a small fix to its DOM backend's resize handling; see
-# vendor/ratzilla/PATCHED.md.
-[patch.crates-io]
-ratzilla = { path = "vendor/ratzilla" }
