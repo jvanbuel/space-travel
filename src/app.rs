@@ -102,6 +102,11 @@ impl App {
             Key::Char('+') | Key::Char('=') | Key::Char('x') => self.game.press(ZOOM_IN),
             Key::Char('-') | Key::Char('_') | Key::Char('z') => self.game.press(ZOOM_OUT),
             Key::Char('r') | Key::Enter => self.game.press(RESET),
+            // Not in the original: start over, parked on Earth.
+            Key::Char('n') => {
+                self.game = Game::new();
+                self.held = [0.0; 8];
+            }
             _ => {}
         }
     }
@@ -219,7 +224,8 @@ impl App {
                 g.altitude() * km,
                 g.speed() * km
             )),
-            Span::raw("  ↓/s fwd  ↑/w back  ←→ turn  +/- zoom  r reset  q quit").dark_gray(),
+            Span::raw("  ↓/s fwd  ↑/w back  ←→ turn  +/- zoom  r clear crash  n new game  q quit")
+                .dark_gray(),
         ]);
         frame.render_widget(Paragraph::new(help_line).dark_gray(), help);
     }

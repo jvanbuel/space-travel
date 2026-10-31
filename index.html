@@ -27,7 +27,7 @@
         #touch { justify-content: flex-end; gap: 20px; }
       }
       .cluster { display: grid; gap: 10px; pointer-events: auto; }
-      .left { grid-template-columns: repeat(2, 64px); grid-template-areas: "reset reset" "ccw cw"; }
+      .left { grid-template-columns: repeat(2, 64px); grid-template-areas: "reset new" "ccw cw"; }
       .right { grid-template-columns: repeat(2, 64px); grid-template-areas: "zout zin" "back back" "fwd fwd"; }
       #touch button {
         height: 56px; border: 1px solid var(--dim); border-radius: 12px; background: var(--pad); color: var(--fg);
@@ -79,7 +79,8 @@
           <li><b>Zoom in</b> with <span class="touch-only">+</span><span class="key-only"><kbd>+</kbd></span> about 8 times: Earth's outline appears. The number at the bottom is the zoom.</li>
           <li><b>Take off</b>: zoom in to about <b>−18</b>, then hold <span class="touch-only">▼</span><span class="key-only"><kbd>↓</kbd></span>. Thrust gets stronger as you zoom out, so stay zoomed in for gentle flying.</li>
           <li><b>Steer</b> with <span class="touch-only">⟲ ⟳</span><span class="key-only"><kbd>←</kbd> <kbd>→</kbd></span>; <span class="touch-only">▲</span><span class="key-only"><kbd>↑</kbd></span> thrusts the other way.</li>
-          <li><b>Land</b> on any planet or moon slower than about 1 km/s. <b>L</b> means landed, <b>CL</b> means you crashed: press <span class="touch-only">RESET</span><span class="key-only"><kbd>r</kbd></span>.</li>
+          <li><b>Land</b> on any planet or moon slower than about 1 km/s. <b>L</b> means landed, <b>CL</b> means you crashed: press <span class="touch-only">RESET</span><span class="key-only"><kbd>r</kbd></span> to clear it and take off again from there.</li>
+          <li><b>Lost?</b> <span class="touch-only">NEW</span><span class="key-only"><kbd>n</kbd></span> starts over, parked on Earth.</li>
         </ol>
         <p>Zoom out to find the Moon, the Sun and the planets. The name at the bottom left is the body whose gravity you are in.</p>
         <p id="status" aria-live="polite">Loading the game…</p>
@@ -90,6 +91,7 @@
     <div id="touch" aria-label="Touch controls">
       <div class="cluster left">
         <button class="small" style="grid-area: reset" data-key="r" aria-label="Clear crash">RESET</button>
+        <button class="small" style="grid-area: new" data-key="n" aria-label="New game">NEW</button>
         <button style="grid-area: ccw" data-key="ArrowLeft" data-hold aria-label="Turn left">⟲</button>
         <button style="grid-area: cw" data-key="ArrowRight" data-hold aria-label="Turn right">⟳</button>
       </div>
