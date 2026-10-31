@@ -36,9 +36,57 @@
       }
       #touch button.small { height: 40px; font-size: 14px; letter-spacing: 0.06em; }
       #touch button.on { background: var(--pad-on); }
+      /* How-to-play panel; doubles as the loading / error screen. */
+      #intro {
+        position: fixed; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center;
+        padding: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+        background: rgba(0, 0, 0, 0.82); overflow: auto;
+      }
+      #intro[hidden] { display: none; }
+      .panel {
+        max-width: 34rem; max-height: 100%; overflow: auto; box-sizing: border-box; padding: 20px 22px;
+        border: 1px solid var(--dim); border-radius: 10px; background: #020a04;
+        font: 15px/1.5 "DejaVu Sans Mono", Menlo, Consolas, monospace; color: var(--fg);
+      }
+      .panel h1 { margin: 0 0 2px; font-size: 22px; letter-spacing: 0.04em; text-wrap: balance; }
+      .panel .sub { margin: 0 0 14px; color: #7fbf8c; font-size: 13px; }
+      .panel ol { margin: 0 0 12px; padding-left: 1.3em; display: grid; gap: 8px; }
+      .panel p { margin: 0 0 12px; }
+      .panel kbd { border: 1px solid var(--dim); border-radius: 4px; padding: 0 5px; font: inherit; }
+      .panel .touch-only { display: none; }
+      @media (pointer: coarse) { .panel .touch-only { display: inline; } .panel .key-only { display: none; } }
+      #start {
+        margin-top: 4px; width: 100%; height: 48px; border: 1px solid var(--dim); border-radius: 10px;
+        background: var(--pad-on); color: #001a06; font: 700 16px/1 "DejaVu Sans Mono", Menlo, Consolas, monospace; letter-spacing: 0.08em;
+      }
+      #start:disabled { background: var(--pad); color: var(--fg); }
+      #start:focus-visible, #help:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+      #status.error { color: #ff9a8a; }
+      #help {
+        position: fixed; z-index: 6; top: max(8px, env(safe-area-inset-top, 0px)); right: max(8px, env(safe-area-inset-right, 0px));
+        width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--dim); background: var(--pad); color: var(--fg);
+        font: 700 18px/1 "DejaVu Sans Mono", Menlo, Consolas, monospace;
+      }
     </style>
   </head>
   <body>
+    <div id="intro" role="dialog" aria-labelledby="intro-title">
+      <div class="panel">
+        <h1 id="intro-title">Space Travel</h1>
+        <p class="sub">Ken Thompson, PDP-7, 1969. Ported to Rust.</p>
+        <p>You start parked on Earth. The ship is always at the centre of the crosshair, and the view turns with it. At first Earth is too small to see, so the screen looks empty.</p>
+        <ol>
+          <li><b>Zoom in</b> with <span class="touch-only">+</span><span class="key-only"><kbd>+</kbd></span> about 8 times: Earth's outline appears. The number at the bottom is the zoom.</li>
+          <li><b>Take off</b>: zoom in to about <b>−18</b>, then hold <span class="touch-only">▼</span><span class="key-only"><kbd>↓</kbd></span>. Thrust gets stronger as you zoom out, so stay zoomed in for gentle flying.</li>
+          <li><b>Steer</b> with <span class="touch-only">⟲ ⟳</span><span class="key-only"><kbd>←</kbd> <kbd>→</kbd></span>; <span class="touch-only">▲</span><span class="key-only"><kbd>↑</kbd></span> thrusts the other way.</li>
+          <li><b>Land</b> on any planet or moon slower than about 1 km/s. <b>L</b> means landed, <b>CL</b> means you crashed: press <span class="touch-only">RESET</span><span class="key-only"><kbd>r</kbd></span>.</li>
+        </ol>
+        <p>Zoom out to find the Moon, the Sun and the planets. The name at the bottom left is the body whose gravity you are in.</p>
+        <p id="status" aria-live="polite">Loading the game…</p>
+        <button id="start" type="button" disabled>Loading…</button>
+      </div>
+    </div>
+    <button id="help" type="button" aria-label="How to play">?</button>
     <div id="touch" aria-label="Touch controls">
       <div class="cluster left">
         <button class="small" style="grid-area: reset" data-key="r" aria-label="Clear crash">RESET</button>
@@ -53,12 +101,31 @@
       </div>
     </div>
     <script type="module">
+      const intro = document.getElementById("intro");
       // ratzilla listens for keys on its grid element, so keep that element focused.
       const grid = () => document.querySelector("[tabindex]");
       const focusGrid = () => grid()?.focus({ preventScroll: true });
-      const waitForGrid = () => grid() ? focusGrid() : requestAnimationFrame(waitForGrid);
+      const waitForGrid = () => grid() ? (intro.hidden && focusGrid()) : requestAnimationFrame(waitForGrid);
       waitForGrid();
-      document.addEventListener("click", focusGrid);
+      document.addEventListener("click", (e) => { if (intro.hidden) focusGrid(); });
+
+      // How-to-play panel. The game signals it is running with
+      // TrunkApplicationStarted; a load failure shows here instead of a
+      // silent black page.
+      const start = document.getElementById("start");
+      const status = document.getElementById("status");
+      const ready = () => { start.disabled = false; start.textContent = "START"; status.textContent = "Ready."; start.focus(); };
+      const failed = (msg) => {
+        status.className = "error";
+        status.textContent = "The game could not start in this browser: " + msg;
+        start.textContent = "Not available";
+      };
+      if (window.gameStarted || window.wasmBindings) ready(); else addEventListener("TrunkApplicationStarted", ready);
+      addEventListener("gamefailed", (e) => failed(e.detail));
+      addEventListener("unhandledrejection", (e) => { if (start.disabled) failed(String(e.reason?.message ?? e.reason)); });
+      setTimeout(() => { if (start.disabled && !status.classList.contains("error")) failed("it did not finish loading after 15 seconds."); }, 15000);
+      start.addEventListener("click", () => { intro.hidden = true; focusGrid(); });
+      document.getElementById("help").addEventListener("click", (e) => { e.stopPropagation(); intro.hidden = false; start.focus(); });
 
       // Touch buttons send keydown events to the grid. Held buttons repeat
       // faster than the game's 0.12 s hold window, so holding thrusts or turns
