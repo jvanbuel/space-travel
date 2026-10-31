@@ -2,22 +2,81 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-    <title>space-travel</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <title>Space Travel</title>
     <link data-trunk rel="rust" />
     <style>
-      html, body { margin: 0; height: 100%; overflow: hidden; background: #000; }
+      :root { --bg: #000; --fg: #c8ffcd; --dim: #2f6b3c; --pad: rgba(20, 60, 30, 0.55); --pad-on: rgba(90, 200, 120, 0.6); color-scheme: dark; }
+      html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--fg); }
       [tabindex] { outline: none; }
-      pre { font-family: "DejaVu Sans Mono", Menlo, Consolas, monospace; font-size: 14px; margin: 0; }
+      pre { font-family: "DejaVu Sans Mono", Menlo, Consolas, monospace; font-size: 14px; margin: 0; color: var(--fg); }
+
+      /* Touch controls: only on touch screens. Each button sends the same key
+         the keyboard would, so the game needs no separate touch input. */
+      #touch { display: none; }
+      @media (pointer: coarse) {
+        #touch {
+          display: flex; justify-content: space-between; align-items: flex-end;
+          position: fixed; left: 0; right: 0; bottom: 0; z-index: 5;
+          padding: 12px max(12px, env(safe-area-inset-right, 0px)) max(12px, env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px));
+          pointer-events: none;
+        }
+      }
+      /* Landscape: the game sits at the left, so keep both clusters right. */
+      @media (pointer: coarse) and (orientation: landscape) {
+        #touch { justify-content: flex-end; gap: 20px; }
+      }
+      .cluster { display: grid; gap: 10px; pointer-events: auto; }
+      .left { grid-template-columns: repeat(2, 64px); grid-template-areas: "reset reset" "ccw cw"; }
+      .right { grid-template-columns: repeat(2, 64px); grid-template-areas: "zout zin" "back back" "fwd fwd"; }
+      #touch button {
+        height: 56px; border: 1px solid var(--dim); border-radius: 12px; background: var(--pad); color: var(--fg);
+        font: 600 20px/1 "DejaVu Sans Mono", Menlo, Consolas, monospace;
+        touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+      }
+      #touch button.small { height: 40px; font-size: 14px; letter-spacing: 0.06em; }
+      #touch button.on { background: var(--pad-on); }
     </style>
   </head>
   <body>
+    <div id="touch" aria-label="Touch controls">
+      <div class="cluster left">
+        <button class="small" style="grid-area: reset" data-key="r" aria-label="Clear crash">RESET</button>
+        <button style="grid-area: ccw" data-key="ArrowLeft" data-hold aria-label="Turn left">⟲</button>
+        <button style="grid-area: cw" data-key="ArrowRight" data-hold aria-label="Turn right">⟳</button>
+      </div>
+      <div class="cluster right">
+        <button class="small" style="grid-area: zout" data-key="-" aria-label="Zoom out">−</button>
+        <button class="small" style="grid-area: zin" data-key="+" aria-label="Zoom in">+</button>
+        <button style="grid-area: back" data-key="ArrowUp" data-hold aria-label="Thrust up">▲</button>
+        <button style="grid-area: fwd" data-key="ArrowDown" data-hold aria-label="Thrust down">▼</button>
+      </div>
+    </div>
     <script type="module">
       // ratzilla listens for keys on its grid element, so keep that element focused.
-      const focusGrid = () => document.querySelector("[tabindex]")?.focus();
-      const waitForGrid = () => document.querySelector("[tabindex]") ? focusGrid() : requestAnimationFrame(waitForGrid);
+      const grid = () => document.querySelector("[tabindex]");
+      const focusGrid = () => grid()?.focus({ preventScroll: true });
+      const waitForGrid = () => grid() ? focusGrid() : requestAnimationFrame(waitForGrid);
       waitForGrid();
       document.addEventListener("click", focusGrid);
+
+      // Touch buttons send keydown events to the grid. Held buttons repeat
+      // faster than the game's 0.12 s hold window, so holding thrusts or turns
+      // continuously, like a held key.
+      const send = (key) => grid()?.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }));
+      for (const b of document.querySelectorAll("#touch button")) {
+        let timer = null;
+        const stop = () => { clearInterval(timer); timer = null; b.classList.remove("on"); };
+        b.addEventListener("pointerdown", (e) => {
+          e.preventDefault();
+          b.setPointerCapture(e.pointerId);
+          b.classList.add("on");
+          send(b.dataset.key);
+          if (b.hasAttribute("data-hold")) timer = setInterval(() => send(b.dataset.key), 50);
+        });
+        for (const t of ["pointerup", "pointercancel", "lostpointercapture"]) b.addEventListener(t, stop);
+        b.addEventListener("contextmenu", (e) => e.preventDefault());
+      }
     </script>
   </body>
 </html>

@@ -54,6 +54,10 @@ thousands of km/s. Zoom in to around `-18` (thrust just over 1 g) to take off
 gently, and land below about 1 km/s or it counts as a crash. After a crash the
 simulation freezes until you press `r`.
 
+On touch screens the browser version shows on-screen buttons: turn and reset
+at the bottom left, zoom and thrust at the bottom right (both on the right in
+landscape). Hold a turn or thrust button for continuous input.
+
 Held keys: terminals and browsers only report key presses (with key repeat),
 so each press holds the button for 0.12 s and key repeat keeps it held.
 

@@ -108,21 +108,18 @@ impl App {
 
     pub fn draw(&self, frame: &mut Frame) {
         let g = &self.game;
-        let [main, readout, help] = Layout::vertical([
-            Constraint::Min(0),
-            Constraint::Length(1),
-            Constraint::Length(1),
-        ])
-        .areas(frame.area());
-
         // The view is square in screen units; cells are about twice as tall
-        // as wide, so it needs twice as many columns as rows. One row below it
-        // holds the velocity indicator.
-        let rows = main.height.saturating_sub(1).min(main.width / 2).max(3);
-        let cols = (rows * 2).min(main.width);
-        let x0 = main.x + (main.width - cols) / 2;
-        let view = Rect::new(x0, main.y, cols, rows.min(main.height));
-        let bar = Rect::new(x0, view.bottom(), cols, 1).intersection(main);
+        // as wide, so it needs twice as many columns as rows. Below it: the
+        // velocity indicator, the readout and the help line. Everything sits
+        // at the top so a phone's lower screen is free for touch controls.
+        let area = frame.area();
+        let rows = area.height.saturating_sub(3).min(area.width / 2).max(3);
+        let cols = (rows * 2).min(area.width);
+        let x0 = area.x + (area.width - cols) / 2;
+        let view = Rect::new(x0, area.y, cols, rows).intersection(area);
+        let bar = Rect::new(x0, view.bottom(), cols, 1).intersection(area);
+        let readout = Rect::new(area.x, bar.bottom(), area.width, 1).intersection(area);
+        let help = Rect::new(area.x, readout.bottom(), area.width, 1).intersection(area);
 
         // Inner size in Braille dots, to size the planet markers.
         let dots_w = f64::from(cols.saturating_sub(2).max(1)) * 2.0;
