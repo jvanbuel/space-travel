@@ -4,9 +4,15 @@ A Rust port of Ken Thompson's *Space Travel* (1969), playable in the terminal
 ([ratatui](https://ratatui.rs) + crossterm) and in the browser (WebAssembly,
 drawn on an HTML canvas like the original's vector display).
 
-> Status: the game is ported. `src/game.rs` follows the original routine by
-> routine; see [Notes on the port](#notes-on-the-port) for the places where
-> the listing had to be interpreted.
+It has two engines, switched with `m`:
+
+- **1970 machine code** (the default): the original program, assembled from
+  [`original/`](original/) and run on a small PDP-7 emulator, with its own
+  software floating point. Its arithmetic is the original's bit for bit,
+  quirks included (see [The 1970 engine](#the-1970-engine)).
+- **Rust, 64-bit floats**: `src/game.rs`, a translation that follows the
+  original routine by routine; see [Notes on the port](#notes-on-the-port)
+  for the places where the listing had to be interpreted.
 
 ## Running it
 
@@ -47,6 +53,7 @@ is the original's horizontal-velocity indicator.
 | `-` / `z` | 6 | Zoom out (`scale++`) |
 | `r` / `Enter` | 1 | Clear a crash (does nothing otherwise) |
 | `n` | (none) | New game, parked on Earth (not in the original) |
+| `m` | (none) | Switch engine (1970 machine code / Rust) and start a new game |
 | `q` / `Esc` | 0 | Quit (terminal) |
 
 One screen unit is 2^scale Earth radii, and **thrust is half a screen unit per
@@ -67,8 +74,13 @@ so each press holds the button for 0.12 s and key repeat keeps it held.
 | File | Role |
 |------|------|
 | `src/game.rs` | The simulation, translated from `st1.s`–`st5.s`. Builds a display list per tick. |
+| `src/pdp7/mod.rs` | A PDP-7 CPU (memory reference, operate group, EAE), following SimH's PDP-7 simulator. |
+| `src/pdp7/original.rs` | Runs the original program: plays PDP-7 Unix (system calls, push buttons) and decodes its Graphic-II display list. |
+| `src/pdp7/image.rs` | The assembled 1970 program (generated; see below). |
+| `src/sim.rs` | The `Sim` trait both engines implement for the front ends. |
+| `tools/assemble.py` | Assembles `original/*.s` in the original build order into `src/pdp7/image.rs`. Run it from the repo root after changing `original/`; `--check` verifies the file is current. |
 | `src/tables.rs` | The planet tables from `st6.s` and constants from `st7.s`, kept as raw PDP-7 words and decoded at start-up. |
-| `src/app.rs` | Fixed-rate ticking (20 Hz) and key mapping. Platform-independent. |
+| `src/app.rs` | Fixed-rate ticking (20 Hz), key mapping, and the engine switch. Platform-independent. |
 | `src/native.rs` | Terminal front end: ~30 fps loop, maps crossterm keys to `app::Key`. |
 | `src/tui.rs` | Terminal renderer: the display list on ratatui's Braille canvas. |
 | `src/web.rs` | Browser front end: keys from `window`, a `requestAnimationFrame` loop, and the canvas renderer. |
@@ -97,6 +109,55 @@ threads or file I/O), so they compile for both targets unchanged.
 - **Time:** both front ends pass real elapsed seconds to `update`. If you want
   to reproduce the original's fixed-tick behaviour, accumulate `dt` and step
   the simulation in fixed increments.
+
+## The 1970 engine
+
+The original program runs as machine code: `tools/assemble.py` (written for
+this port from the pdp7-unix project's description of the Unix v0 assembler)
+assembles `st1.s`–`st4.s`, `fop.s`, `st5.s`–`st7.s` into 3,014 words loaded at
+octal 10000, the same layout as the 1970 build. `src/pdp7/mod.rs` executes it:
+the instruction semantics follow SimH's PDP-7 code, including the Extended
+Arithmetic Element (hardware multiply, divide, normalise) that `fop.s` uses.
+
+The host plays the operating system and the display. The program asks
+`sysloc` for the push-button word and reads its buttons from there; `capt`
+and `time` do nothing (the frame rate replaces the delay); each pass of
+`loop:` ends at the top of the loop, and the display list it built in memory
+is decoded into lines and dots: `dsetx`/`dsety`, long vectors (`vecx`,
+`vecy`), short vectors (outlines), `dsplanet`'s incremental steps (a dot) and
+intensity words. The texts are read from the list's header.
+
+One pass is about 60,000–100,000 instructions, 0.2–0.3 ms on a laptop. On a
+real PDP-7 (1.75 µs memory cycle, most instructions 2 cycles, EAE operations
+longer) that is very roughly a third to half a second, so the original
+probably ran at a few frames per second; the port runs 20.
+
+Tests check the emulator through the original routines (hardware multiply
+and divide exact over random operands; `fmp`, `fad` and `sqrt` good to the
+format's 35 bits) and compare a take-off in both engines. The comparison
+turned up two quirks of the 1969 code, both in `fop.s` as listed (the
+restored file matches the scan's OCR there):
+
+- **`fdv` is only good to about 1 part in 30,000.** It adds 1 to the high
+  quotient word before its final shift whenever its correction count is not
+  negative, which it never is (`6: lac 2b; sma; tad d1`), and it shifts the
+  divisor with `ral` without clearing the link, so the caller's carry bit can
+  slip in (`sfdv` uses `ral cll`). The scan has a box around that `ral` and
+  notes and arrows around the correction code.
+- **`fcp` misjudges close numbers.** When exponents and high words are equal
+  it returns `ans - hls`, the difference of the low words, as an 18-bit
+  word; a difference of 2¹⁷ or more has the sign bit set and reads as
+  "less". The game compares its distance from the planet with the planet's
+  radius this way, so a ship climbing from Earth gets "landed" again at about
+  60 m, and the landing code (which rescales the position by `rpar / dpar`
+  through the biased `fdv`) puts it down 146 m up. The Rust engine, comparing
+  f64s, doesn't do this.
+
+A third shows on screen: zoomed far in, the 1970 engine draws a planet's
+surface as a shallow V instead of a flat arc. `surf` steps round the outline
+with `sfmp`, which keeps 17 bits, so `vv = 1 - v²/2` (just under 1) truncates
+to 1 - 2⁻¹⁷ and every step pulls the outline in by r·2⁻¹⁷: 2 units per step
+for Earth at scale -18.
 
 ## Notes on the port
 

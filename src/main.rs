@@ -1,5 +1,7 @@
 mod app;
 mod game;
+mod pdp7;
+mod sim;
 mod tables;
 
 #[cfg(not(target_arch = "wasm32"))]

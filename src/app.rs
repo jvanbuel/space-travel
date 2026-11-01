@@ -1,7 +1,10 @@
-//! Platform-independent game shell: fixed-rate ticking, input mapping and
-//! drawing. The simulation itself is in `game.rs`.
+//! Platform-independent game shell: fixed-rate ticking, input mapping, and
+//! the choice of engine. `tui.rs` (terminal) and `web.rs` (browser canvas)
+//! draw whatever [`Sim`] is running.
 
 use crate::game::{Game, button};
+use crate::pdp7::original::Original;
+use crate::sim::Sim;
 
 /// Input, already translated from crossterm / browser key events.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -15,6 +18,25 @@ pub enum Key {
     Esc,
 }
 
+/// Which engine runs the game.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Mode {
+    /// The original 1970 machine code on the emulated PDP-7, with its own
+    /// software floating point (`original/fop.s`).
+    Original,
+    /// The Rust translation in `game.rs`, with modern 64-bit floats.
+    Modern,
+}
+
+impl Mode {
+    pub fn label(self) -> &'static str {
+        match self {
+            Mode::Original => "1970 machine code",
+            Mode::Modern => "Rust, 64-bit floats",
+        }
+    }
+}
+
 /// Simulation passes per real second. One pass is about one simulated
 /// second, so this is also the time-warp factor.
 const TICK_HZ: f64 = 20.0;
@@ -24,7 +46,8 @@ pub const TICK: f64 = 1.0 / TICK_HZ;
 const HOLD: f64 = 0.12;
 
 pub struct App {
-    pub game: Game,
+    pub sim: Box<dyn Sim>,
+    pub mode: Mode,
     pub quit: bool,
     acc: f64,
     /// Remaining hold time for each level-triggered button.
@@ -37,14 +60,33 @@ impl Default for App {
     }
 }
 
+fn engine(mode: Mode) -> Box<dyn Sim> {
+    match mode {
+        Mode::Original => Box::new(Original::new()),
+        Mode::Modern => Box::new(Game::new()),
+    }
+}
+
 impl App {
     pub fn new() -> Self {
+        Self::with_mode(Mode::Original)
+    }
+
+    pub fn with_mode(mode: Mode) -> Self {
         Self {
-            game: Game::new(),
+            sim: engine(mode),
+            mode,
             quit: false,
             acc: 0.0,
             held: [0.0; 8],
         }
+    }
+
+    /// Start a new game with the given engine.
+    pub fn restart(&mut self, mode: Mode) {
+        self.sim = engine(mode);
+        self.mode = mode;
+        self.held = [0.0; 8];
     }
 
     /// Advance the simulation by `dt` real seconds.
@@ -59,10 +101,9 @@ impl App {
                     *t -= TICK;
                 }
             }
-            self.game.pbson = bits;
-            self.game.tick();
+            self.sim.tick(bits);
         }
-        if self.game.exit {
+        if self.sim.exit() {
             self.quit = true;
         }
     }
@@ -71,21 +112,23 @@ impl App {
         use button::*;
         let hold = |s: &mut Self, b: u32| s.held[b as usize] = HOLD;
         match key {
-            Key::Char('q') | Key::Esc => self.game.press(EXIT),
+            Key::Char('q') | Key::Esc => self.sim.press(EXIT),
             // Forward thrust pushes the ship toward the bottom of the view
             // (see README), so Down/s is forward and Up/w is backward.
             Key::Down | Key::Char('s') | Key::Char('j') => hold(self, FORWARD),
             Key::Up | Key::Char('w') | Key::Char('k') => hold(self, BACKWARD),
             Key::Left | Key::Char('a') | Key::Char('h') => hold(self, ROT_CCW),
             Key::Right | Key::Char('d') | Key::Char('l') => hold(self, ROT_CW),
-            Key::Char('+') | Key::Char('=') | Key::Char('x') => self.game.press(ZOOM_IN),
-            Key::Char('-') | Key::Char('_') | Key::Char('z') => self.game.press(ZOOM_OUT),
-            Key::Char('r') | Key::Enter => self.game.press(RESET),
+            Key::Char('+') | Key::Char('=') | Key::Char('x') => self.sim.press(ZOOM_IN),
+            Key::Char('-') | Key::Char('_') | Key::Char('z') => self.sim.press(ZOOM_OUT),
+            Key::Char('r') | Key::Enter => self.sim.press(RESET),
             // Not in the original: start over, parked on Earth.
-            Key::Char('n') => {
-                self.game = Game::new();
-                self.held = [0.0; 8];
-            }
+            Key::Char('n') => self.restart(self.mode),
+            // Not in the original: switch engine (starts a new game).
+            Key::Char('m') => self.restart(match self.mode {
+                Mode::Original => Mode::Modern,
+                Mode::Modern => Mode::Original,
+            }),
             _ => {}
         }
     }

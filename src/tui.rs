@@ -26,7 +26,7 @@ const INTENS: [Color; 4] = [
 const FRAME: Color = Color::Rgb(30, 80, 40);
 
 pub fn draw(app: &App, frame: &mut Frame) {
-    let g = &app.game;
+    let g = app.sim.as_ref();
     // The view is square in screen units; cells are about twice as tall
     // as wide, so it needs twice as many columns as rows. Below it: the
     // velocity indicator, the readout and the help line. Everything sits
@@ -44,7 +44,7 @@ pub fn draw(app: &App, frame: &mut Frame) {
     let dots_w = f64::from(cols.saturating_sub(2).max(1)) * 2.0;
     let dot = 768.0 / dots_w;
 
-    let display = &g.display;
+    let display = g.display();
     let canvas = Canvas::default()
         .block(
             Block::bordered()
@@ -91,7 +91,7 @@ pub fn draw(app: &App, frame: &mut Frame) {
     frame.render_widget(canvas, view);
 
     // Horizontal-velocity indicator.
-    let vel_x = g.vel_x;
+    let vel_x = g.vel_x();
     let bar_canvas = Canvas::default()
         .marker(Marker::Braille)
         .x_bounds([127.0, 895.0])
@@ -121,7 +121,7 @@ pub fn draw(app: &App, frame: &mut Frame) {
     frame.render_widget(Paragraph::new(g.name()).style(bright), left);
     frame.render_widget(Paragraph::new(g.scale_text()).style(bright).centered(), mid);
     let status = g.status_text();
-    let status_style = if g.crflg {
+    let status_style = if g.crashed() {
         Style::new().fg(Color::LightRed).bold()
     } else {
         bright
@@ -138,8 +138,11 @@ pub fn draw(app: &App, frame: &mut Frame) {
             g.altitude() * km,
             g.speed() * km
         )),
-        Span::raw("  ↓/s fwd  ↑/w back  ←→ turn  +/- zoom  r clear crash  n new game  q quit")
-            .dark_gray(),
+        Span::raw(format!(
+            "  ↓/s fwd  ↑/w back  ←→ turn  +/- zoom  r clear crash  n new  m engine ({})  q quit",
+            app.mode.label()
+        ))
+        .dark_gray(),
     ]);
     frame.render_widget(Paragraph::new(help_line).dark_gray(), help);
 }

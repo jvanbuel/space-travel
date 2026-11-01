@@ -8,8 +8,10 @@ use std::{cell::RefCell, rc::Rc};
 use wasm_bindgen::{JsCast, closure::Closure};
 use web_sys::{CanvasRenderingContext2d, HtmlCanvasElement, KeyboardEvent, Window};
 
+use crate::app::Mode;
 use crate::app::{App, Key};
-use crate::game::{Game, Mark};
+use crate::game::Mark;
+use crate::sim::Sim;
 
 /// Part of the display shown: the 768-unit view box (x 127..895,
 /// y 255..1023) with the velocity bar and text line below it and a margin.
@@ -79,7 +81,8 @@ pub fn run() -> std::io::Result<()> {
         let dt = last.map_or(0.0, |l| ((t - l) / 1000.0).clamp(0.0, 0.1));
         last = Some(t);
         app.borrow_mut().update(dt);
-        draw(&win, &canvas, &ctx, &app.borrow().game, t);
+        let app = app.borrow();
+        draw(&win, &canvas, &ctx, app.sim.as_ref(), app.mode, t);
         if let Some(f) = frame.borrow().as_ref() {
             let _ = win.request_animation_frame(f.as_ref().unchecked_ref());
         }
@@ -137,7 +140,8 @@ fn draw(
     win: &Window,
     canvas: &HtmlCanvasElement,
     ctx: &CanvasRenderingContext2d,
-    g: &Game,
+    g: &dyn Sim,
+    mode: Mode,
     t: f64,
 ) {
     // Match the canvas buffer to its on-screen size (this also clears it).
@@ -180,19 +184,19 @@ fn draw(
     strokes(ctx, &v, frame.iter().copied(), INTENS[0] * 0.6);
 
     // Planet outlines, all at intensity 0.
-    let outlines = g.display.iter().filter_map(|m| match *m {
+    let outlines = g.display().iter().filter_map(|m| match *m {
         Mark::Line { x1, y1, x2, y2 } => Some((x1.into(), y1.into(), x2.into(), y2.into())),
         Mark::Point { .. } => None,
     });
     strokes(ctx, &v, outlines, INTENS[0]);
 
     // Body centres, and the velocity indicator (drawn like the Sun's, br3).
-    for m in &g.display {
+    for m in g.display() {
         if let Mark::Point { x, y, br } = *m {
             dot(ctx, &v, x.into(), y.into(), INTENS[usize::from(br)]);
         }
     }
-    if let Some(x) = g.vel_x {
+    if let Some(x) = g.vel_x() {
         dot(ctx, &v, x.into(), 250.0, INTENS[3]);
     }
 
@@ -209,13 +213,13 @@ fn draw(
     let base = v.y(20.0);
     ctx.set_fill_style_str(&rgba(INTENS[1], 1.0));
     ctx.set_text_align("left");
-    ctx.fill_text(g.name(), v.x(127.0), base).ok();
+    ctx.fill_text(&g.name(), v.x(127.0), base).ok();
     ctx.set_text_align("center");
     ctx.fill_text(&g.scale_text(), v.x(511.0), base).ok();
     if ((t / 400.0) as u64).is_multiple_of(2) {
         ctx.set_fill_style_str(&rgba(INTENS[3], 1.0));
         ctx.set_text_align("right");
-        ctx.fill_text(g.status_text(), v.x(895.0), base).ok();
+        ctx.fill_text(&g.status_text(), v.x(895.0), base).ok();
     }
 
     // Not in the original: altitude and speed, small and dim.
@@ -229,6 +233,8 @@ fn draw(
         g.speed() * km
     );
     ctx.fill_text(&readout, v.x(127.0), v.y(170.0)).ok();
+    ctx.set_text_align("right");
+    ctx.fill_text(mode.label(), v.x(895.0), v.y(170.0)).ok();
 }
 
 /// Strokes a batch of segments as a beam would: a soft halo, then the line.
